@@ -1,0 +1,258 @@
+diff -r mlgmp_ref/mlgmp/config.h mlgmp/config.h
+5a6
+> #include <stdint.h>
+61c62
+< extern void serialize_int_4(int32 i);
+---
+> extern void serialize_int_4(int32_t i);
+64,65c65,66
+< extern uint32 deserialize_uint_4(void);
+< extern int32 deserialize_sint_4(void);
+---
+> extern uint32_t deserialize_uint_4(void);
+> extern int32_t deserialize_sint_4(void);
+diff -r mlgmp_ref/mlgmp/gmp.ml mlgmp/gmp.ml
+4c4,5
+<  * to_string_base_digits Copyright (c) 2005 Olivier BUISSOU
+---
+>  * to_string_base_digits Copyright (c) 2005 Olivier BUISSOU 
+>  * portions modified by Runtime Verification, Inc on 8/24/2015
+208a210,211
+>   external randseed: state: RNG.randstate_t->seed: t->unit =
+>     "_mlgmp_z_randseed";;
+514a518,525
+>   external exp10_prec : prec: int -> mode: rounding_mode -> t->t
+>       = "_mlgmp_fr_exp10";;
+>   external log_prec : prec: int -> mode: rounding_mode -> t->t
+>       = "_mlgmp_fr_log";;
+>   external log2_prec : prec: int -> mode: rounding_mode -> t->t
+>       = "_mlgmp_fr_log2";;
+>   external log10_prec : prec: int -> mode: rounding_mode -> t->t
+>       = "_mlgmp_fr_log10";;
+529a541,548
+>   external check_range :
+>       prec:int -> mode:rounding_mode -> emin:int -> emax:int -> t -> t * int
+>       = "_mlgmp_fr_check_range";;
+>   external subnormalize :
+>       t -> ternary:int -> mode:rounding_mode -> t
+>       = "_mlgmp_fr_subnormalize";;
+>   external nexttoward : emin:int -> emax:int -> t -> t -> t = "_mlgmp_fr_nexttoward"
+> 
+534a554,560
+>   external is_inf : t->bool = "_mlgmp_fr_is_inf";;
+> 
+>   external equal : t -> t -> bool = "_mlgmp_fr_equal";;
+>   external greater : t -> t -> bool = "_mlgmp_fr_greater";;
+>   external greaterequal : t -> t -> bool = "_mlgmp_fr_greaterequal";;
+>   external less : t -> t -> bool = "_mlgmp_fr_less";;
+>   external lessequal : t -> t -> bool = "_mlgmp_fr_lessequal";;
+591a618,621
+>   let exp10 = default exp10_prec
+>   let log = default log_prec
+>   let log2 = default log2_prec
+>   let log10 = default log10_prec
+599,600d628
+< 
+<   let equal x y = eq x y ~prec: 90;;
+diff -r mlgmp_ref/mlgmp/gmp.mli mlgmp/gmp.mli
+130a131,132
+>     external randseed : state:RNG.randstate_t -> seed:t -> unit
+>       = "_mlgmp_z_randseed"
+341a344,350
+>     external check_range : 
+>       prec:int -> mode:rounding_mode -> emin:int -> emax:int -> t -> t * int 
+>       = "_mlgmp_fr_check_range"
+>     external subnormalize : 
+>       t -> ternary:int -> mode:rounding_mode -> t
+>       = "_mlgmp_fr_subnormalize"
+>     external nexttoward : emin:int -> emax:int -> t -> t -> t = "_mlgmp_fr_nexttoward"
+346a356,362
+>     external is_inf : t -> bool = "_mlgmp_fr_is_inf"
+>     external equal : t -> t -> bool = "_mlgmp_fr_equal"
+>     external greater : t -> t -> bool = "_mlgmp_fr_greater"
+>     external greaterequal : t -> t -> bool = "_mlgmp_fr_greaterequal"
+>     external less : t -> t -> bool = "_mlgmp_fr_less"
+>     external lessequal : t -> t -> bool = "_mlgmp_fr_lessequal"
+> 
+391a408,411
+>   external log_prec : prec: int -> mode: rounding_mode -> t->t
+>       = "_mlgmp_fr_log";;
+>   external log2_prec : prec: int -> mode: rounding_mode -> t->t
+>       = "_mlgmp_fr_log2";;
+420a441,444
+>     val exp10 : t -> t
+>     val log : t -> t
+>     val log2 : t -> t
+>     val log10 : t -> t
+428d451
+<     val equal : t -> t -> bool
+diff -r mlgmp_ref/mlgmp/Makefile mlgmp/Makefile
+39c39
+< 	-mkdir $(DESTDIR)
+---
+> 	-mkdir -p $(DESTDIR)
+71c71
+< 	$(OCAMLC) $(OCAMLFLAGS) -a gmp.cmo -cclib -lmlgmp $(LIBFLAGS) -o $@
+---
+> 	$(OCAMLC) $(OCAMLFLAGS) -custom -a gmp.cmo -cclib -lmlgmp $(LIBFLAGS) -o $@
+94c94
+< 	$(OCAMLC) -custom $+ -o $@
+---
+> 	$(OCAMLC)  $+ -o $@
+diff -r mlgmp_ref/mlgmp/mlgmp_fr.c mlgmp/mlgmp_fr.c
+298a299,302
+> fr_unary_op(exp10)
+> fr_unary_op(log)
+> fr_unary_op(log2)
+> fr_unary_op(log10)
+304a309,374
+> /*** Round to exponent range */
+> 
+> value _mlgmp_fr_check_range(value prec, value mode, value emin, value emax, value a)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam5(prec, mode, emin, emax, a);
+>   CAMLlocal2(r, tuple);
+>   r=alloc_init_mpfr(prec);
+>   int t = mpfr_set(*mpfr_val(r), *mpfr_val(a), Mode_val(mode));
+>   mpfr_exp_t last_emin = mpfr_get_emin();
+>   mpfr_exp_t last_emax = mpfr_get_emax();
+>   mpfr_set_emin(Long_val(emin));
+>   mpfr_set_emax(Long_val(emax));
+>   t = mpfr_check_range(*mpfr_val(r), t, Mode_val(mode));
+>   mpfr_set_emin(last_emin);
+>   mpfr_set_emax(last_emax);
+>   tuple = alloc_tuple(2);
+>   Store_field(tuple, 0, r);
+>   Store_field(tuple, 1, Val_int(t));
+>   CAMLreturn(tuple);
+> #else
+>   unimplemented(check_range);
+> #endif
+> }
+> 
+> /*** Subnormalize */
+> 
+> value _mlgmp_fr_subnormalize(value a, value ternary, value mode)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam3(a, ternary, mode);
+>   CAMLlocal1(r);
+>   r = alloc_mpfr();
+>   mpfr_init2(*mpfr_val(r), mpfr_get_prec(*mpfr_val(a)));
+>   mpfr_set(*mpfr_val(r), *mpfr_val(a), Mode_val(mode));
+>   mpfr_subnormalize(*mpfr_val(r), Int_val(ternary), Mode_val(mode));
+>   CAMLreturn(r);
+> #else
+>   unimplemented(subnormalize);
+> #endif
+> }
+> 
+> /*** Next toward */
+> 
+> value _mlgmp_fr_nexttoward(value emin, value emax, value a, value b)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam2(a, b);
+>   CAMLlocal1(r);
+>   r = alloc_mpfr();
+>   mpfr_init2(*mpfr_val(r), mpfr_get_prec(*mpfr_val(a)));
+>   mpfr_exp_t last_emin = mpfr_get_emin();
+>   mpfr_exp_t last_emax = mpfr_get_emax();
+>   mpfr_set_emin(Long_val(emin));
+>   mpfr_set_emax(Long_val(emax));
+>   mpfr_set(*mpfr_val(r), *mpfr_val(a), GMP_RNDN);
+>   mpfr_nexttoward(*mpfr_val(r), *mpfr_val(b));
+>   mpfr_set_emin(last_emin);
+>   mpfr_set_emax(last_emax);
+>   CAMLreturn(r);
+> #else
+>   unimplemented(nexttoward);
+> #endif
+> }
+>   
+> 
+356a427,438
+> value _mlgmp_fr_is_inf(value a)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam1(a);
+>   CAMLreturn(mpfr_inf_p(*mpfr_val(a)) ? Val_true : Val_false);
+> #else
+>   unimplemented(is_nan);
+> #endif
+> }
+> 
+> 
+> 
+366a449,509
+> 
+> 
+> value _mlgmp_fr_equal(value a, value b)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam2(a, b);
+>   CAMLreturn(mpfr_equal_p(*mpfr_val(a), *mpfr_val(b))
+> 	     ? Val_true : Val_false);
+> #else
+>   unimplemented(equal);
+> #endif
+> }
+> 
+> 
+> value _mlgmp_fr_greater(value a, value b)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam2(a, b);
+>   CAMLreturn(mpfr_greater_p(*mpfr_val(a), *mpfr_val(b))
+> 	     ? Val_true : Val_false);
+> #else
+>   unimplemented(greater);
+> #endif
+> }
+> 
+> 
+> value _mlgmp_fr_greaterequal(value a, value b)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam2(a, b);
+>   CAMLreturn(mpfr_greaterequal_p(*mpfr_val(a), *mpfr_val(b))
+> 	     ? Val_true : Val_false);
+> #else
+>   unimplemented(greaterequal);
+> #endif
+> }
+> 
+> 
+> value _mlgmp_fr_less(value a, value b)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam2(a, b);
+>   CAMLreturn(mpfr_less_p(*mpfr_val(a), *mpfr_val(b))
+> 	     ? Val_true : Val_false);
+> #else
+>   unimplemented(less);
+> #endif
+> }
+> 
+> 
+> value _mlgmp_fr_lessequal(value a, value b)
+> {
+> #ifdef USE_MPFR
+>   CAMLparam2(a, b);
+>   CAMLreturn(mpfr_lessequal_p(*mpfr_val(a), *mpfr_val(b))
+> 	     ? Val_true : Val_false);
+> #else
+>   unimplemented(lessequal);
+> #endif
+> }
+> 
+diff -r mlgmp_ref/mlgmp/mlgmp_z.c mlgmp/mlgmp_z.c
+744a745,751
+> value _mlgmp_z_randseed(value state, value seed)
+> {
+>   CAMLparam2(state, seed);
+>   gmp_randseed(*randstate_val(state), *mpz_val(seed));
+>   CAMLreturn(Val_unit);
+> }
+> 
